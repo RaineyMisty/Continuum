@@ -12,3 +12,6 @@ runs/
 .artifacts/
 
 frontend/vendor/
+
+ghostgraph/output/*
+!ghostgraph/output/.gitkeep

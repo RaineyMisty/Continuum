@@ -5,10 +5,8 @@
 ```text
 Continuum/
 ├── ghostgraph/          demo：旧代码、可运行场景、回归测试
-│   ├── legacy_orders.py
-│   ├── demo.py
-│   ├── checks.json
-│   └── tests/
+│   ├── input/          旧代码、场景、回归测试
+│   └── output/         验证完成后自动导出的新代码
 ├── agent/               AI worker：改写、验证、检查点、恢复
 │   ├── cli.py
 │   ├── engine.py
@@ -71,9 +69,9 @@ python -m pip install -e '.[dev]'
 ## 先运行旧代码
 
 ```powershell
-Push-Location ghostgraph
-& ../.venv/Scripts/python.exe demo.py
-& ../.venv/Scripts/python.exe -m pytest -q
+Push-Location ghostgraph/input
+& ../../.venv/Scripts/python.exe demo.py
+& ../../.venv/Scripts/python.exe -m pytest -q
 Pop-Location
 ```
 
@@ -82,7 +80,7 @@ Pop-Location
 ## 无 API 的暂停 / 恢复演示
 
 ```powershell
-& $py -m agent start --input ghostgraph --run-dir .artifacts/runs/demo --provider mock --checks-file ghostgraph/checks.json --stop-after 1
+& $py -m agent start --input ghostgraph/input --run-dir .artifacts/runs/demo --provider mock --checks-file ghostgraph/input/checks.json --stop-after 1
 & $py -m agent status --run-dir .artifacts/runs/demo
 & $py -m agent resume --run-dir .artifacts/runs/demo
 & $py -m agent export --run-dir .artifacts/runs/demo --output .artifacts/outputs/modernized
@@ -95,7 +93,7 @@ Pop-Location
 
 ```powershell
 $env:NVIDIA_API_KEY = 'your-key'
-& $py -m agent start --input ghostgraph --run-dir .artifacts/runs/ai-01 --checks-file ghostgraph/checks.json --goal 'Separate pricing and order state responsibilities; remove duplication while preserving public APIs and observable behavior' --max-steps 8
+& $py -m agent start --input ghostgraph/input --run-dir .artifacts/runs/ai-01 --checks-file ghostgraph/input/checks.json --goal 'Separate pricing and order state responsibilities; remove duplication while preserving public APIs and observable behavior' --max-steps 8
 & $py -m agent export --run-dir .artifacts/runs/ai-01 --output .artifacts/outputs/ai-01
 ```
 
@@ -125,7 +123,7 @@ $env:NVIDIA_API_KEY = 'your-key'
 先从 `none` 模式产生共同检查点，避免之前数据库状态通过 handoff 污染对照组：
 
 ```powershell
-& $py -m agent start --input ghostgraph --run-dir .artifacts/runs/seed --provider mock --checks-file ghostgraph/checks.json --stop-after 1
+& $py -m agent start --input ghostgraph/input --run-dir .artifacts/runs/seed --provider mock --checks-file ghostgraph/input/checks.json --stop-after 1
 & $py -m agent fork --run-dir .artifacts/runs/seed --output .artifacts/runs/control --context-adapter none
 & $py -m agent fork --run-dir .artifacts/runs/seed --output .artifacts/runs/repeat --context-adapter none
 & $py -m agent resume --run-dir .artifacts/runs/control

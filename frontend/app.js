@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="console-token"]').content;
 let before, after, diff, original, modified, removed, added;
-let files=[], filePath='', selected='', current=null, config={}, busy=false, polling=false;
+let files=[], filePath='', selected='', current=null, config={}, busy=false, polling=false, hasOutput=false;
 
 async function api(path,data) {
   const response=await fetch(path,{method:data?'POST':'GET',headers:{'X-Console-Token':token,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined});
@@ -15,6 +15,7 @@ function controls(){
   $('resume').disabled=busy||!current||current.running||['completed','baseline_failed'].includes(current.phase);
 }
 function highlight(){
+  if(!hasOutput){removed.clear();added.clear();return;}
   const changes=diff.getLineChanges()||[];
   const decorations=(side,cls)=>changes.filter(c=>c[side+'EndLineNumber']>0).map(c=>({
     range:new monaco.Range(c[side+'StartLineNumber'],1,c[side+'EndLineNumber'],1),
@@ -35,7 +36,7 @@ function updateFiles(next){
   showFile(paths.includes(filePath)?filePath:(files.find(f=>f.path==='legacy_orders.py')||files[0])?.path);
 }
 function render(state){
-  current=state;controls();updateFiles(state.files);
+  current=state;hasOutput=true;controls();updateFiles(state.files);highlight();
   if(state.error)fail(state.error.message);
 }
 async function refresh(){if(selected)render(await api('/api/run/'+selected));}
@@ -69,7 +70,7 @@ else{
     let scrolling=false;
     for(const [a,b] of [[before,after],[after,before]])a.onDidScrollChange(e=>{if(scrolling)return;scrolling=true;b.setScrollTop(e.scrollTop);b.setScrollLeft(e.scrollLeft);scrolling=false;});
     try{
-      const demo=await api('/api/demo');config=demo.config;updateFiles(demo.files);
+      const demo=await api('/api/demo');config=demo.config;hasOutput=demo.has_output;updateFiles(demo.files);
       const saved=localStorage.getItem('continuum-minimal-run');if(saved){try{const run=await api('/api/run/'+saved);selected=saved;render(run);}catch{localStorage.removeItem('continuum-minimal-run');}}
     }catch(error){fail(error);}
     setInterval(async()=>{if(polling||busy||!selected)return;polling=true;try{await refresh();}catch(error){fail(error);}finally{polling=false;}},1500);

@@ -20,7 +20,7 @@ import webbrowser
 from .assets import ensure_monaco
 from agent.cli import compare
 from agent.engine import RunConfig, create_run, export_run, fork_run
-from agent.storage import Store
+from agent.storage import Store, atomic_json
 from agent.workspace import source_files
 
 
@@ -65,6 +65,28 @@ class Console:
         workers = json.loads(path.read_text()) if path.exists() else []
         workers.append({'pid': self.workers[name].pid, 'started': time.time(), 'checkpoint': checkpoint})
         path.write_text(json.dumps(workers), encoding='utf-8')
+        threading.Thread(target=self.finish, args=(name, self.workers[name]), daemon=True).start()
+
+    def export_completed(self, name):
+        store = self.store(name)
+        state = store.load()
+        output = self.repo / 'ghostgraph/output'
+        output.mkdir(parents=True, exist_ok=True)
+        dest = output / name
+        if not dest.exists():
+            export_run(store, dest)
+        atomic_json(output / 'latest.json', {'run': name, 'provider': state['config']['provider']})
+        return dest
+
+    def finish(self, name, process):
+        process.wait()
+        with self.mutex:
+            state = self.store(name).load()
+            if process.returncode == 0 and state['phase'] == 'completed':
+                try:
+                    self.export_completed(name)
+                except Exception as exc:
+                    atomic_json(self.logs / (name + '.export-error.json'), {'message': str(exc)})
 
     def stop(self, name):
         if not self.active(name):
@@ -94,11 +116,15 @@ class Console:
                       adapter=state['config']['context_adapter'], goal=state['config']['goal'],
                       max_steps=state['config']['max_steps'])
         if detail:
-            before, after = source_files(store.root / 'input'), source_files(store.project(state))
-            result['files'] = [{'path': p, 'before': before.get(p, ''), 'after': code,
-                'diff': ''.join(difflib.unified_diff(before.get(p, '').splitlines(True), code.splitlines(True),
+            before = source_files(store.root / 'input')
+            if state['phase'] == 'completed' and not self.active(name):
+                after = source_files(self.export_completed(name))
+            else:
+                after = source_files(store.project(state))
+            result['files'] = [{'path': p, 'before': before.get(p, ''), 'after': after.get(p, ''),
+                'diff': ''.join(difflib.unified_diff(before.get(p, '').splitlines(True), after.get(p, '').splitlines(True),
                                                     fromfile='original/' + p, tofile='current/' + p))}
-                for p, code in after.items() if p.endswith('.py')]
+                for p in sorted(before.keys() | after.keys()) if p.endswith('.py')]
             log = self.logs / (name + '.log')
             if log.exists():
                 with log.open('rb') as handle:
@@ -118,9 +144,9 @@ class Console:
                 if provider == 'nvidia' and not (os.getenv('NVIDIA_API_KEY') or os.getenv('GHOSTGRAPH_API_KEY')):
                     raise ValueError('请先在启动服务的终端设置 NVIDIA_API_KEY 或 GHOSTGRAPH_API_KEY，再重新启动控制台。')
                 name = 'ui-' + uuid.uuid4().hex[:12]
-                src = Path(data.get('input') or 'ghostgraph')
+                src = Path(data.get('input') or 'ghostgraph/input')
                 src = src if src.is_absolute() else self.repo / src
-                default_demo = src.resolve() == (self.repo / 'ghostgraph').resolve()
+                default_demo = src.resolve() == (self.repo / 'ghostgraph/input').resolve()
                 commands = json.loads((src / 'checks.json').read_text()) if default_demo else [['{python}', '-m', 'pytest', '-q']]
                 steps = int(data.get('max_steps', 8))
                 if not 1 <= steps <= 30:
@@ -156,11 +182,7 @@ class Console:
             elif action == 'export':
                 if self.active(name):
                     raise ValueError('请等待 worker 完成')
-                dest = self.repo / '.artifacts/outputs' / name
-                if dest.exists():
-                    raise ValueError(f'已经导出：{dest}')
-                dest.parent.mkdir(exist_ok=True)
-                export_run(store, dest)
+                dest = self.export_completed(name)
                 return {'output': str(dest)}
             else:
                 raise ValueError('Unknown action')
@@ -202,11 +224,18 @@ def make_server(repo: Path, port=8765):
                 return
             try:
                 if path == '/api/demo':
-                    src = Path(console.config.get('input', 'ghostgraph'))
+                    src = Path(console.config.get('input', 'ghostgraph/input'))
                     src = src if src.is_absolute() else console.repo / src
                     files = source_files(src)
-                    self.send(200, {'config': console.config, 'files': [
-                        {'path': p, 'before': text, 'after': text} for p, text in files.items() if p.endswith('.py')]})
+                    after = {}
+                    latest = console.repo / 'ghostgraph/output/latest.json'
+                    if latest.exists():
+                        name = json.loads(latest.read_text())['run']
+                        console.store(name)  # Validate the locally managed run ID.
+                        after = source_files(console.repo / 'ghostgraph/output' / name)
+                    self.send(200, {'config': console.config, 'has_output': latest.exists(), 'files': [
+                        {'path': p, 'before': files.get(p, ''), 'after': after.get(p, '')}
+                        for p in sorted(files.keys() | after.keys()) if p.endswith('.py')]})
                 elif path.startswith('/vendor/monaco/'):
                     target = (assets / path.lstrip('/')).resolve()
                     if not target.is_relative_to((assets / 'vendor/monaco').resolve()) or not target.is_file():

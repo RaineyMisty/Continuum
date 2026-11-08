@@ -13,3 +13,5 @@
 运行配置统一放在 `frontend/demo.json`：`provider` 可设为 `mock` 或 `nvidia`，`stop_after` 控制是否在一轮后暂停，其余字段设置输入目录、目标、轮次与记忆适配器。真实模型的密钥从启动服务的环境读取。Mock 只改变演示注释，不进行 AI 优化；页角以 MOCK 标记。
 
 首次运行自动下载固定版本 Monaco，之后使用本地缓存，无需 Node 构建。后台分叉、比较、导出能力仍保留在 HTTP API 和 agent CLI 中，不占用演示页面。运行记录保存在 `.artifacts/`。
+
+输入来自 `ghostgraph/input/`。运行中右侧读取检查点，完成后自动导出至 `ghostgraph/output/<run-id>/` 并展示该目录里的代码。重新打开页面可读取最近一次输出。红色高亮删除/替换，绿色高亮新增/替换；输入目录不会被修改。

@@ -11,8 +11,8 @@ from frontend.server import make_server
 
 
 def test_http_console_real_worker_pause_resume_and_auth(tmp_path):
-    project = tmp_path / 'ghostgraph'
-    project.mkdir()
+    project = tmp_path / 'ghostgraph/input'
+    project.mkdir(parents=True)
     (project / 'app.py').write_text('def answer():\n    return 42\n')
     (project / 'test_app.py').write_text('from app import answer\ndef test_answer():\n    assert answer() == 42\n')
     (project / 'checks.json').write_text(json.dumps([['{python}', '-m', 'pytest', '-q']]))
@@ -37,6 +37,8 @@ def test_http_console_real_worker_pause_resume_and_auth(tmp_path):
         pytest.fail('worker did not stop')
 
     try:
+        demo = api('/api/demo')
+        assert all(f['after'] == '' for f in demo['files'])
         with urlopen(base) as response:
             assert b'__CONSOLE_TOKEN__' not in response.read()
         with pytest.raises(HTTPError) as error:
@@ -61,6 +63,10 @@ def test_http_console_real_worker_pause_resume_and_auth(tmp_path):
         assert not comparison['different_files']
         exported = api('/api/action', {'action': 'export', 'id': name})['output']
         assert (Path(exported) / 'app.py').exists()
+        assert Path(exported).parent == tmp_path / 'ghostgraph/output'
+        assert (tmp_path / 'ghostgraph/output/latest.json').exists()
+        assert (project / 'app.py').read_text() == 'def answer():\n    return 42\n'
+        assert any(f['after'] != f['before'] for f in api('/api/demo')['files'])
         with pytest.raises(HTTPError):
             api('/api/action', {'action': 'resume', 'id': '../escape'})
     finally:
