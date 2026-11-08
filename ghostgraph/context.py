@@ -1,10 +1,5 @@
-"""Stable extension point for a future SpacetimeDB-backed mathematical state.
-
-The execution engine never imports SpacetimeDB directly. Implement the protocol
-and supply module:factory via --context-adapter when the DB design is ready.
-"""
+"""Versioned research-memory port. Local recovery never depends on this port."""
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -15,13 +10,17 @@ class ContextRequest:
     run_id: str
     step: int
     goal: str
-    files: list[str]
+    files: dict[str, str]
+    checkpoint_id: str = ''
+    history: list[dict] = field(default_factory=list)
+    handoff: dict = field(default_factory=dict)
+    schema_version: int = 1
+    requested_state_ref: str | None = None
 
 
 @dataclass(frozen=True)
 class ContextSnapshot:
-    """Application-facing projection of future state z; no z model is prescribed."""
-    instructions: str = ""
+    instructions: str = ''
     model_state: dict[str, Any] = field(default_factory=dict)
     state_ref: str | None = None
 
@@ -33,15 +32,18 @@ class ContextEvent:
     step: int
     kind: str
     payload: dict[str, Any]
+    event_id: str = ''
+    schema_version: int = 1
 
 
 class ContextPort(Protocol):
     def read(self, request: ContextRequest) -> ContextSnapshot: ...
-    def write(self, event: ContextEvent) -> None: ...
+    def write(self, event: ContextEvent) -> None:
+        """At-least-once delivery: implementations MUST deduplicate by event_id."""
+        ...
 
 
 class NullContext:
-    """Baseline for later with/without SpacetimeDB comparisons."""
     def read(self, request: ContextRequest) -> ContextSnapshot:
         return ContextSnapshot()
 

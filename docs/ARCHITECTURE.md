@@ -1,49 +1,59 @@
-# Stage 1: Frozen boundaries
+# Execution and recovery design
 
-## Purpose
+## Modules
 
-Produce a real new version of a legacy Python program using an LLM. Preserve a stable hook for a future SpacetimeDB context/skill/world-model provider, without deciding the algorithm yet.
+- `workspace.py`: source snapshots, context limits, protected test paths and validated Python edits.
+- `engine.py`: task lifecycle; independent of the transport and database implementation.
+- `providers.py`: real OpenAI-compatible HTTP transport and deterministic offline demo.
+- `storage.py`: immutable local checkpoints, atomic HEAD switch, process ownership lock.
+- `validation.py`: fixed argv commands, isolated verification copies, timeouts and captured output.
+- `context.py`: versioned database research extension point.
+- `cli.py`: start, resume, pause, status, fork, compare, verify and export.
 
-## Module A — Legacy project (input)
-
-- Input: an existing Python codebase, preferably with regression tests.
-- The project is **not** a simulated API: the source files are real and are used as LLM input.
-- The input stays unchanged. A modernized copy is written to a different directory.
-- Tests are read-only contract examples. A successful test run alone does not prove better maintainability.
-
-## Module B — AI modernization runner
-
-- Inputs: legacy source snapshot, goal, optional `ContextSnapshot`, optional previous test feedback.
-- Model: OpenAI-compatible API (NVIDIA Nemotron Ultra by default); mock adapter for offline wiring tests only.
-- Output: list of **entire revised file contents**, restricted to existing Python application files.
-- Verification: optionally execute project's test command on the output tree.
-- Emits `ContextEvent` at step start and step completion. It does not assume anything about SpacetimeDB's schema.
-- Stage 1 is deliberately a bounded edit loop, not an autonomous coding agent or full tool-use framework.
-
-## Module C — Context / Skill port (UNIMPLEMENTED)
-
-The future database may manage whatever abstract state and algorithm are found useful.
-The Stage-1 runner needs only:
+## State machine
 
 ```text
-ContextPort.read(ContextRequest) -> ContextSnapshot
-ContextPort.write(ContextEvent) -> None
+baseline --fail--> baseline_failed
+   |
+  pass
+   v
+generate: read optional database memory, persist exact prompt
+   v
+request: call model OR reuse already saved response
+   v
+apply: validate the entire proposal, apply in private copy
+   | invalid JSON/edit -> feedback history -> next round
+   v
+verify: persist candidate code AND explicit handoff before running tests
+   |
+   +-- tests pass AND model says done -> completed
+   +-- otherwise -> generate, or exhausted if round budget reached
 ```
 
-`ContextSnapshot` has these fields:
+The latest unsuccessful candidate is intentionally retained: the next worker sees the partially edited code and its failures. Input remains separate. A failing baseline stops before the first model call, so environment problems cannot be mistaken for model regressions.
 
-- `instructions` — what the LLM-facing adapter wants included in the current prompt
-- `model_state` — optional small JSON-compatible projection of the abstract state
-- `state_ref` — a reference/version ID of the authoritative DB state
+Every commit creates a new directory containing code and state, then replaces HEAD with `os.replace`. Checkpoint readers follow HEAD only. A killed copy/commit leaves an unreferenced directory, never a partially selected revision. Checkpoints are not garbage-collected automatically. This design targets small experiments and prioritizes auditability over space efficiency.
 
-`ContextEvent` includes project/run/step, an event kind, and a payload.
+Run-level OS locking prevents concurrent writers and releases automatically when a process dies. Validation uses disposable copies and fixed commands, so its writes cannot contaminate a checkpoint. Arbitrary project code is trusted, not sandboxed; hard-killing the runner can leave a verification subprocess running until it exits, but that subprocess works on its disposable copy.
 
-**The mathematical state z, update algorithm U, and database schema are explicitly outside this stage.** An adapter can project the state for the LLM while keeping the authoritative state inside SpacetimeDB. The runner never sees database tables.
+## Recovery boundaries
 
-## Future experiments (not implemented)
+| Interruption | Recovery |
+| --- | --- |
+| Baseline validation | Re-run baseline on saved input |
+| Database read | Retry read; no request was committed |
+| LLM request before full response is saved | Re-send exact committed prompt |
+| Full response saved, HEAD not advanced | Reuse response by request ID |
+| Candidate copy/edit or HEAD switch | Follow prior HEAD and replay cached response |
+| Verification | Re-run fixed commands on persisted candidate |
+| Database event acknowledged but local ack not saved | Replay identical event ID |
 
-- With/without DB: same input source, starting commit, task, model, temperature, tools and tests; only context adapter differs.
-- Crash: same frozen checkpoint, two independent workers, a reproducible interruption point.
-- Multiple continuations: repeated independent output directories; compare semantic behavior and key decisions rather than exact code bytes.
+No promise of exactly-once remote inference or recovery of unreturned token streams. The backend may bill a request even if its response was lost. `Ctrl+C` records a pause when possible; SIGKILL leaves the last durable phase. Process-crash consistency is distinct from power-loss durability.
 
-Do not claim these experiments pass until they are built and run.
+## Continuity experiment
+
+Recovery state is a local execution requirement, not the experimental memory algorithm. Both branches receive the same explicit public handoff and history. Only the treatment branch receives `ContextSnapshot.instructions/model_state`. The exact prompt and snapshot are retained in the request checkpoint; `state_ref` records actual database provenance.
+
+Fork only at the `generate` boundary after a completed round and delivered events. Forks have new run IDs and record their common parent checkpoint. They retain matching source, model, goal and validation settings. Start the common parent with NullContext; a parent previously influenced by memory is not a clean no-memory baseline. Pin database state with `memory_ref` and enforce per-run isolation in the future adapter.
+
+The current optimizer edits existing application modules only. This intentionally keeps test/config/dependency contracts fixed, and bounds the task to refactoring rather than arbitrary repository redevelopment. Full-file proposals support multiple modules per step. More advanced tool use, file creation/deletion, dependency changes and long-context retrieval can be added later without replacing the recovery or database contracts.

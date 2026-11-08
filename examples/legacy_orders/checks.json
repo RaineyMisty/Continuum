@@ -1,0 +1,4 @@
+[
+  ["{python}", "demo.py"],
+  ["{python}", "-m", "pytest", "-q"]
+]
