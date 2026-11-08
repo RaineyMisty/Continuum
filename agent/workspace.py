@@ -20,17 +20,6 @@ def copy_project(source: Path, target: Path) -> None:
     shutil.copytree(source, target, ignore=shutil.ignore_patterns(*SKIP, '*.pyc'))
 
 
-def prepare(input_dir: Path, output_dir: Path) -> None:
-    src, dst = input_dir.resolve(), output_dir.resolve()
-    if not src.is_dir():
-        raise ValueError(f'Input directory does not exist: {src}')
-    if src == dst or src in dst.parents or dst in src.parents:
-        raise ValueError('Input and run directories must be separate and not nested')
-    if dst.exists():
-        raise ValueError(f'Output already exists: {dst}')
-    copy_project(src, dst)
-
-
 def is_test(path: str) -> bool:
     p = PurePosixPath(path.replace('\\', '/'))
     return (any(x.lower() in {'test', 'tests', 'testing'} for x in p.parts[:-1])

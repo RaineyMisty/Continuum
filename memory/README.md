@@ -1,6 +1,6 @@
 # Database extension contract (schema version 1)
 
-Implement `read(ContextRequest) -> ContextSnapshot` and `write(ContextEvent) -> None`, then expose a zero-argument factory through `--context-adapter package.module:create_port`. `none` selects `NullContext`. The bundled SpacetimeDB template deliberately raises `NotImplementedError`; no schema or mathematical state is implied.
+Implement `read(ContextRequest) -> ContextSnapshot` and `write(ContextEvent) -> None`, then expose a zero-argument factory through `--context-adapter package.module:create_port`. `none` selects `NullContext`. `context.py` defines the complete extension contract; add a concrete SpacetimeDB adapter when its schema and algorithm are designed.
 
 ## Read
 
@@ -22,7 +22,7 @@ Events include `event_id`, `schema_version`, project/run/step, kind and payload:
 - `step_started`: upcoming step and snapshot reference.
 - `step_completed`: summary, edit paths, validation/error feedback, explicit handoff and code hashes.
 
-Events are persisted in the same local checkpoint as the execution state. Delivery is **at least once**. `write` MUST atomically deduplicate `event_id` before mutating database state. If delivery fails, execution stops with a recoverable error; it does not silently proceed with missing memory. New .artifacts/runs/forks have distinct run IDs. Project ID derives from the input content manifest, not just directory name.
+Events are persisted in the same local checkpoint as the execution state. Delivery is **at least once**. `write` MUST atomically deduplicate `event_id` before mutating database state. If delivery fails, execution stops with a recoverable error; it does not silently proceed with missing memory. New runs/forks have distinct run IDs. Project ID derives from the input content manifest, not just directory name.
 
 Step completion carries public `plan`, `completed`, `decisions`, and `next_actions`, not hidden chain-of-thought. An adapter can maintain skills, constraints, causal links or compressed state based on these records, without changing the worker.
 

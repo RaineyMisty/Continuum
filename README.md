@@ -14,9 +14,9 @@ Continuum/
 │   ├── engine.py
 │   ├── providers.py
 │   └── tests/
-├── memory/              数据库接口及未来 SpacetimeDB 适配器
+├── memory/              数据库协议（未来接入 SpacetimeDB）
 │   ├── context.py
-│   └── spacetime_adapter_template.py
+│   └── README.md
 ├── .artifacts/          本地运行记录、导出代码、缓存（不入 Git）
 ├── .venv/               本地 Python 环境（不入 Git）
 ├── README.md
@@ -146,7 +146,7 @@ $env:NVIDIA_API_KEY = 'your-key'
 
 不要手动改检查点；恢复时校验哈希。不自动清理检查点，便于实验审计；长实验会增加磁盘占用。`status` 中的 `phase` 是持久化进度，强杀后不一定显示 `paused=true`，也不表示 worker 仍在线。
 
-详见 [架构与恢复协议](agent/ARCHITECTURE.md)、[数据库接口约定](memory/README.md)。旧的 `python -m ghostgraph` 入口已迁移为 `python -m agent`，`ghostgraph/` 现在仅包含 demo。已有运行和导出数据移到 `.artifacts/runs/`、`.artifacts/outputs/`；恢复时传新目录，历史记录中的旧绝对路径保留作审计信息。旧 0.1 输出没有恢复状态，不能直接 resume。
+详见 [架构与恢复协议](agent/README.md)、[数据库接口约定](memory/README.md)。旧的 `python -m ghostgraph` 入口已迁移为 `python -m agent`，`ghostgraph/` 现在仅包含 demo。已有运行和导出数据移到 `.artifacts/runs/`、`.artifacts/outputs/`；恢复时传新目录，历史记录中的旧绝对路径保留作审计信息。旧 0.1 输出没有恢复状态，不能直接 resume。
 
 ## 开发验证
 

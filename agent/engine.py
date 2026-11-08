@@ -12,7 +12,7 @@ from memory.context import ContextEvent, ContextPort, ContextRequest
 from .providers import LLM
 from .storage import Store, atomic_json
 from .validation import validate
-from .workspace import apply_changes, hashes, prepare, source_files
+from .workspace import apply_changes, copy_project, hashes, source_files
 
 TERMINAL = {'completed', 'baseline_failed', 'exhausted'}
 
@@ -40,26 +40,24 @@ def create_run(cfg: RunConfig) -> Store:
     if not cfg.commands or any(not c or any(not isinstance(x, str) for x in c) for c in cfg.commands):
         raise ValueError('Verification requires nonempty argv arrays')
     root, src = cfg.output_dir.resolve(), cfg.input_dir.resolve()
+    if not src.is_dir():
+        raise ValueError(f'Input directory does not exist: {src}')
     if root == src or root in src.parents or src in root.parents:
         raise ValueError('Input and run directories must be separate and not nested')
     # Validate before allocating the run directory.
     source_files(src)
     root.mkdir(parents=True, exist_ok=False)
     store = Store(root)
-    try:
-        prepare(src, root / 'input')
-        manifest = hashes(root / 'input')
-        config = asdict(cfg)
-        config.update(input_dir=str(src), output_dir=str(root))
-        state = {'schema_version': 1, 'run_id': str(uuid.uuid4()),
-                 'project_id': hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest(),
-                 'config': config, 'phase': 'baseline', 'step': 0, 'history': [],
-                 'handoff': {}, 'baseline': None, 'outbox': [], 'error': None,
-                 'file_hashes': manifest, 'input_hashes': manifest}
-        store.commit(state, root / 'input')
-    except BaseException:
-        # Keep incomplete initialization for diagnosis; never silently overwrite it.
-        raise
+    copy_project(src, root / 'input')
+    manifest = hashes(root / 'input')
+    config = asdict(cfg)
+    config.update(input_dir=str(src), output_dir=str(root))
+    state = {'schema_version': 1, 'run_id': str(uuid.uuid4()),
+             'project_id': hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest(),
+             'config': config, 'phase': 'baseline', 'step': 0, 'history': [],
+             'handoff': {}, 'baseline': None, 'outbox': [], 'error': None,
+             'file_hashes': manifest, 'input_hashes': manifest}
+    store.commit(state, root / 'input')
     return store
 
 
@@ -197,7 +195,7 @@ def run(store: Store, llm: LLM, context: ContextPort, stop_after: int | None = N
                             state['file_hashes'] = hashes(candidate)
                             state['phase'] = 'verify'
                             state = save(store, state, candidate)
-                    except (ValueError, SyntaxError) as exc:
+                    except ValueError as exc:
                         state = finish_step(store, state, {'error': str(exc), 'tests_passed': False,
                                                           'request_id': state['request']['id'],
                                                           'changed_files': [], 'status': 'continue'})
