@@ -13,10 +13,12 @@ dependencies = ["openai>=1.50,<3"]
 dev = ["pytest>=8"]
 
 [project.scripts]
-ghostgraph = "ghostgraph.cli:main"
+continuum = "agent.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["ghostgraph*"]
+include = ["agent*", "memory*"]
+exclude = ["agent.tests*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["agent/tests"]
+cache_dir = ".artifacts/pytest-cache"

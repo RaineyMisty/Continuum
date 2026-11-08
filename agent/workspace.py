@@ -7,7 +7,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 
 SKIP = {'.git', '.venv', 'venv', '__pycache__', '.pytest_cache', 'node_modules',
-        '.env', '.tox', 'runs', 'outputs', 'dist', 'build'}
+        '.env', '.tox', '.artifacts', 'runs', 'outputs', 'dist', 'build'}
 
 
 def copy_project(source: Path, target: Path) -> None:

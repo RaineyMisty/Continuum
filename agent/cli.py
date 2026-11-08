@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import sys
 
-from .context import NullContext
+from memory.context import NullContext
 from .engine import RunConfig, create_run, export_run, fork_run, run, save
 from .providers import MockLLM, NvidiaLLM
 from .storage import Store
@@ -66,7 +66,7 @@ def compare(left: Store, right: Store) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Continuum / GhostGraph resumable modernization lab')
+    parser = argparse.ArgumentParser(description='Continuum resumable AI modernization worker')
     sub = parser.add_subparsers(dest='command', required=True)
     start = sub.add_parser('start', help='Snapshot input, verify baseline and start a new run')
     start.add_argument('--input', type=Path, required=True)
@@ -149,6 +149,6 @@ def main() -> None:
         print('Paused. Resume with the same --run-dir.', file=sys.stderr)
         code = 130
     except Exception as exc:
-        print(f'GhostGraph error: {exc}', file=sys.stderr)
+        print(f'Continuum error: {exc}', file=sys.stderr)
         code = 2
     raise SystemExit(code)

@@ -7,7 +7,7 @@
 - `providers.py`: real OpenAI-compatible HTTP transport and deterministic offline demo.
 - `storage.py`: immutable local checkpoints, atomic HEAD switch, process ownership lock.
 - `validation.py`: fixed argv commands, isolated verification copies, timeouts and captured output.
-- `context.py`: versioned database research extension point.
+- `../memory/context.py`: versioned database research extension point; the worker imports this contract only.
 - `cli.py`: start, resume, pause, status, fork, compare, verify and export.
 
 ## State machine

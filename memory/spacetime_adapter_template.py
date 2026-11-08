@@ -1,9 +1,9 @@
 """Placeholder ONLY. No SpacetimeDB schema or mathematical algorithm selected yet.
 
 When ready, implement read and write using SpacetimeDB's generated SDK:
-    ghostgraph start --context-adapter ghostgraph.spacetime_adapter_template:create_port ...
+    continuum start --context-adapter memory.spacetime_adapter_template:create_port ...
 
-Implement the schema-v1 contract in docs/CONTEXT_PORT.md, including event_id
+Implement the schema-v1 contract in memory/README.md, including event_id
 deduplication and requested_state_ref support. This template deliberately fails
 until a real database design is supplied; it never silently substitutes no memory.
 """

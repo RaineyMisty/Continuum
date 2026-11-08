@@ -1,6 +1,31 @@
 # Continuum — 可中断、可恢复的 Python 重构实验框架
 
-Python 包和 CLI 保留 `ghostgraph` 名称。此版本实现旧代码输入/新代码输出、AI 多轮改写、验证、暂停、恢复和对照实验；SpacetimeDB 只保留接口，尚未实现数据库算法。
+三个业务模块分别放在 `ghostgraph/`、`agent/`、`memory/`。运行入口为 `python -m agent` 或安装后的 `continuum` 命令。此版本实现旧代码输入/新代码输出、AI 多轮改写、验证、暂停、恢复和对照实验；SpacetimeDB 只保留接口，尚未实现数据库算法。
+
+```text
+Continuum/
+├── ghostgraph/          demo：旧代码、可运行场景、回归测试
+│   ├── legacy_orders.py
+│   ├── demo.py
+│   ├── checks.json
+│   └── tests/
+├── agent/               AI worker：改写、验证、检查点、恢复
+│   ├── cli.py
+│   ├── engine.py
+│   ├── providers.py
+│   └── tests/
+├── memory/              数据库接口及未来 SpacetimeDB 适配器
+│   ├── context.py
+│   └── spacetime_adapter_template.py
+├── .artifacts/          本地运行记录、导出代码、缓存（不入 Git）
+├── .venv/               本地 Python 环境（不入 Git）
+├── README.md
+├── pyproject.toml
+├── setup.cfg            构建元数据写入 agent/，不占根目录
+└── LICENSE
+```
+
+模块自己的文档和测试随模块放置。根目录仅保留项目说明和必要配置。`agent` 表示执行任务的 worker；`memory` 表示其可插拔的持久记忆，底层数据库后续可替换。
 
 ## 三个模块
 
@@ -33,9 +58,9 @@ python -m pip install -e '.[dev]'
 ## 先运行旧代码
 
 ```powershell
-Push-Location examples/legacy_orders
-& ../../.venv/Scripts/python.exe demo.py
-& ../../.venv/Scripts/python.exe -m pytest -q
+Push-Location ghostgraph
+& ../.venv/Scripts/python.exe demo.py
+& ../.venv/Scripts/python.exe -m pytest -q
 Pop-Location
 ```
 
@@ -44,11 +69,11 @@ Pop-Location
 ## 无 API 的暂停 / 恢复演示
 
 ```powershell
-& $py -m ghostgraph start --input examples/legacy_orders --run-dir runs/demo --provider mock --checks-file examples/legacy_orders/checks.json --stop-after 1
-& $py -m ghostgraph status --run-dir runs/demo
-& $py -m ghostgraph resume --run-dir runs/demo
-& $py -m ghostgraph export --run-dir runs/demo --output outputs/modernized
-& $py outputs/modernized/demo.py
+& $py -m agent start --input ghostgraph --run-dir .artifacts/runs/demo --provider mock --checks-file ghostgraph/checks.json --stop-after 1
+& $py -m agent status --run-dir .artifacts/runs/demo
+& $py -m agent resume --run-dir .artifacts/runs/demo
+& $py -m agent export --run-dir .artifacts/runs/demo --output .artifacts/outputs/modernized
+& $py .artifacts/outputs/modernized/demo.py
 ```
 
 第一轮写入演示标记后暂停，第二次进程读取保存的代码和 handoff 后完成。只有 `phase=completed` 且通过验证的项目允许导出。
@@ -57,8 +82,8 @@ Pop-Location
 
 ```powershell
 $env:NVIDIA_API_KEY = 'your-key'
-& $py -m ghostgraph start --input examples/legacy_orders --run-dir runs/ai-01 --checks-file examples/legacy_orders/checks.json --goal 'Separate pricing and order state responsibilities; remove duplication while preserving public APIs and observable behavior' --max-steps 8
-& $py -m ghostgraph export --run-dir runs/ai-01 --output outputs/ai-01
+& $py -m agent start --input ghostgraph --run-dir .artifacts/runs/ai-01 --checks-file ghostgraph/checks.json --goal 'Separate pricing and order state responsibilities; remove duplication while preserving public APIs and observable behavior' --max-steps 8
+& $py -m agent export --run-dir .artifacts/runs/ai-01 --output .artifacts/outputs/ai-01
 ```
 
 默认沿用原项目的 NVIDIA 模型配置；实际账号是否有该模型需自行确认。也可设置 `GHOSTGRAPH_API_KEY`、`GHOSTGRAPH_BASE_URL`、`GHOSTGRAPH_MODEL` 或传 `--base-url`、`--model`。密钥只从环境读取，不写入检查点；模型、endpoint、温度、token 上限和验证命令都会记录。
@@ -74,8 +99,8 @@ $env:NVIDIA_API_KEY = 'your-key'
 ## 暂停、切断、恢复
 
 - **可重复实验的暂停点**：`start/resume --stop-after 1`，完成一轮并交付事件后暂停。
-- **另一终端请求暂停**：`ghostgraph pause --run-dir runs/ai-01`。当前调用结束后在下一持久化边界停下。
-- **立即中断当前调用**：Ctrl+C。之后 `ghostgraph resume --run-dir runs/ai-01`。
+- **另一终端请求暂停**：`continuum pause --run-dir .artifacts/runs/ai-01`。当前调用结束后在下一持久化边界停下。
+- **立即中断当前调用**：Ctrl+C。之后 `continuum resume --run-dir .artifacts/runs/ai-01`。
 - **进程被强杀**：同一条 resume 命令恢复；不需要手工删除锁。操作系统释放进程锁。
 - **耗尽轮数**：退出码 1，保留当前代码；`resume --extra-steps 4` 追加预算。
 - **API/数据库暂时不可用**：退出码 2；修复连接后 resume，保留原请求。
@@ -87,19 +112,19 @@ $env:NVIDIA_API_KEY = 'your-key'
 先从 `none` 模式产生共同检查点，避免之前数据库状态通过 handoff 污染对照组：
 
 ```powershell
-& $py -m ghostgraph start --input examples/legacy_orders --run-dir runs/seed --provider mock --checks-file examples/legacy_orders/checks.json --stop-after 1
-& $py -m ghostgraph fork --run-dir runs/seed --output runs/control --context-adapter none
-& $py -m ghostgraph fork --run-dir runs/seed --output runs/repeat --context-adapter none
-& $py -m ghostgraph resume --run-dir runs/control
-& $py -m ghostgraph resume --run-dir runs/repeat
-& $py -m ghostgraph compare --left runs/control --right runs/repeat
+& $py -m agent start --input ghostgraph --run-dir .artifacts/runs/seed --provider mock --checks-file ghostgraph/checks.json --stop-after 1
+& $py -m agent fork --run-dir .artifacts/runs/seed --output .artifacts/runs/control --context-adapter none
+& $py -m agent fork --run-dir .artifacts/runs/seed --output .artifacts/runs/repeat --context-adapter none
+& $py -m agent resume --run-dir .artifacts/runs/control
+& $py -m agent resume --run-dir .artifacts/runs/repeat
+& $py -m agent compare --left .artifacts/runs/control --right .artifacts/runs/repeat
 ```
 
 实现数据库适配器之后，第二个分支可换成：
 
 ```powershell
-& $py -m ghostgraph fork --run-dir runs/seed --output runs/with-db --context-adapter my_adapter:create_port --memory-ref frozen-v1
-& $py -m ghostgraph resume --run-dir runs/with-db
+& $py -m agent fork --run-dir .artifacts/runs/seed --output .artifacts/runs/with-db --context-adapter my_adapter:create_port --memory-ref frozen-v1
+& $py -m agent resume --run-dir .artifacts/runs/with-db
 ```
 
 两组共享相同代码、目标、公开 handoff、历史和模型参数；实验组多出适配器返回的记忆。`--memory-ref` 请求冻结数据库版本，由适配器实现读取隔离；实际返回的 `state_ref` 随请求存档。不能仅指定不同 adapter 就假定数据库实验完全受控：需要适配器确保各分支写入不互相污染。
@@ -109,7 +134,7 @@ $env:NVIDIA_API_KEY = 'your-key'
 ## 数据与接口
 
 ```text
-runs/example/
+.artifacts/runs/example/
   input/                         原始项目快照
   HEAD.json                      当前检查点指针
   checkpoints/<id>/state.json    当前阶段、配置、公开 handoff、历史、事件 outbox
@@ -121,7 +146,7 @@ runs/example/
 
 不要手动改检查点；恢复时校验哈希。不自动清理检查点，便于实验审计；长实验会增加磁盘占用。`status` 中的 `phase` 是持久化进度，强杀后不一定显示 `paused=true`，也不表示 worker 仍在线。
 
-详见 [架构与恢复协议](docs/ARCHITECTURE.md)、[数据库接口约定](docs/CONTEXT_PORT.md)。本版 CLI 使用子命令，替代旧版 `ghostgraph --input ... --output ...`。旧 0.1 输出没有恢复状态，不能直接 resume。
+详见 [架构与恢复协议](agent/ARCHITECTURE.md)、[数据库接口约定](memory/README.md)。旧的 `python -m ghostgraph` 入口已迁移为 `python -m agent`，`ghostgraph/` 现在仅包含 demo。已有运行和导出数据移到 `.artifacts/runs/`、`.artifacts/outputs/`；恢复时传新目录，历史记录中的旧绝对路径保留作审计信息。旧 0.1 输出没有恢复状态，不能直接 resume。
 
 ## 开发验证
 

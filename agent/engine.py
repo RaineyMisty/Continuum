@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import uuid
 
-from .context import ContextEvent, ContextPort, ContextRequest
+from memory.context import ContextEvent, ContextPort, ContextRequest
 from .providers import LLM
 from .storage import Store, atomic_json
 from .validation import validate

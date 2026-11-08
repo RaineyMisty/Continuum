@@ -7,13 +7,13 @@ import time
 
 import pytest
 
-from ghostgraph.cli import compare
-from ghostgraph.context import NullContext, ContextSnapshot
-from ghostgraph.engine import RunConfig, create_run, export_run, fork_run, run
-from ghostgraph.providers import MockLLM
-from ghostgraph.storage import Store
-from ghostgraph.validation import validate
-from ghostgraph.workspace import apply_changes, hashes
+from agent.cli import compare
+from memory.context import NullContext, ContextSnapshot
+from agent.engine import RunConfig, create_run, export_run, fork_run, run
+from agent.providers import MockLLM
+from agent.storage import Store
+from agent.validation import validate
+from agent.workspace import apply_changes, hashes
 
 
 @pytest.fixture
@@ -191,9 +191,9 @@ def test_os_lock_released_after_forced_process_kill(project, tmp_path):
     script = '''
 import sys, time
 from pathlib import Path
-from ghostgraph.engine import run
-from ghostgraph.storage import Store
-from ghostgraph.context import NullContext
+from agent.engine import run
+from agent.storage import Store
+from memory.context import NullContext
 class Blocking:
     def generate(self, prompt, files):
         Path(sys.argv[2]).write_text('ready')
@@ -221,10 +221,10 @@ run(Store(Path(sys.argv[1])), Blocking(), NullContext())
 
 def test_cli_exit_codes_and_extra_steps(project, tmp_path):
     root = tmp_path / 'cli-run'
-    proc = subprocess.run([sys.executable, '-m', 'ghostgraph', 'start', '--input', str(project),
+    proc = subprocess.run([sys.executable, '-m', 'agent', 'start', '--input', str(project),
                            '--run-dir', str(root), '--provider', 'mock', '--max-steps', '1'], capture_output=True, text=True)
     assert proc.returncode == 1, proc.stderr
-    proc = subprocess.run([sys.executable, '-m', 'ghostgraph', 'resume', '--run-dir', str(root),
+    proc = subprocess.run([sys.executable, '-m', 'agent', 'resume', '--run-dir', str(root),
                            '--extra-steps', '1'], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout)['phase'] == 'completed'
@@ -241,7 +241,7 @@ def test_pause_request_and_modified_checkpoint(project, tmp_path):
 
 
 def test_atomic_head_failure_keeps_previous_code(project, tmp_path, monkeypatch):
-    import ghostgraph.storage as storage
+    import agent.storage as storage
     store = new_run(project, tmp_path)
     original = storage.atomic_json
     failed = False

@@ -7,4 +7,4 @@ Run `python -m pytest -q` from this directory. No live services are required.
 
 Run `python demo.py` for a complete order/payment scenario, with expected revenue
 `110.00`. `checks.json` runs both the executable scenario and all seven regression
-tests. Pass it to the runner using `--checks-file examples/legacy_orders/checks.json`.
+tests. Pass it to the runner using `--checks-file ghostgraph/checks.json`.
