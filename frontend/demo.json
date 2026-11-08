@@ -1,0 +1,8 @@
+{
+  "input": "ghostgraph",
+  "goal": "Improve modularity and readability while preserving public APIs and observable behavior",
+  "max_steps": 8,
+  "adapter": "none",
+  "provider": "mock",
+  "stop_after": true
+}

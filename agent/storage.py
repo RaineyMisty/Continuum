@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import time
 import uuid
 
 
@@ -14,7 +15,15 @@ def atomic_json(path: Path, value: dict) -> None:
         json.dump(value, handle, ensure_ascii=False, indent=2)
         handle.flush()
         os.fsync(handle.fileno())
-    os.replace(temp, path)
+    # Windows readers/antivirus can briefly deny replacement of an open HEAD.
+    for attempt in range(20):
+        try:
+            os.replace(temp, path)
+            break
+        except PermissionError as exc:
+            if os.name != 'nt' or getattr(exc, 'winerror', None) not in {5, 32, 33} or attempt == 19:
+                raise
+            time.sleep(0.025)
 
 
 class Store:

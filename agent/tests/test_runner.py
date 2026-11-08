@@ -272,3 +272,24 @@ def test_memory_reference_is_forwarded(project, tmp_path):
             return ContextSnapshot(state_ref='frozen-v7')
 
     assert run(store, Scripted(response()), Frozen())['phase'] == 'completed'
+
+
+def test_atomic_json_retries_windows_reader_lock(tmp_path, monkeypatch):
+    import os
+    import agent.storage as storage
+    if os.name != 'nt':
+        pytest.skip('Windows sharing violation behavior')
+    original = storage.os.replace
+    calls = []
+    def temporarily_locked(source, target):
+        calls.append(target)
+        if len(calls) < 3:
+            error = PermissionError('reader holds HEAD briefly')
+            error.winerror = 32
+            raise error
+        return original(source, target)
+    monkeypatch.setattr(storage.os, 'replace', temporarily_locked)
+    path = tmp_path / 'HEAD.json'
+    storage.atomic_json(path, {'checkpoint_id': 'new'})
+    assert json.loads(path.read_text()) == {'checkpoint_id': 'new'}
+    assert len(calls) == 3

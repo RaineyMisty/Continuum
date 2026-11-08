@@ -16,9 +16,12 @@ dev = ["pytest>=8"]
 continuum = "agent.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["agent*", "memory*"]
-exclude = ["agent.tests*"]
+include = ["agent*", "memory*", "frontend*"]
+exclude = ["agent.tests*", "frontend.tests*"]
 
 [tool.pytest.ini_options]
-testpaths = ["agent/tests"]
+testpaths = ["agent/tests", "frontend/tests"]
 cache_dir = ".artifacts/pytest-cache"
+
+[tool.setuptools.package-data]
+frontend = ["*.html", "*.css", "*.js", "demo.json"]

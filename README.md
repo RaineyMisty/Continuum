@@ -17,6 +17,7 @@ Continuum/
 ├── memory/              数据库协议（未来接入 SpacetimeDB）
 │   ├── context.py
 │   └── README.md
+├── frontend/           页面、本地服务、项目运行调度与控制台测试
 ├── .artifacts/          本地运行记录、导出代码、缓存（不入 Git）
 ├── .venv/               本地 Python 环境（不入 Git）
 ├── README.md
@@ -35,6 +36,18 @@ Continuum/
 
 **范围**：可信的小型 Python 项目，最多 100 个上下文文件、180000 字符。当前不支持创建/删除模块、修改测试或自动安装目标项目依赖。优化质量依赖模型与目标测试；通过测试不能证明完全语义等价。mock 仅验证流程，不代表真实 AI 优化。
 
+## 一键启动真实运行控制台
+
+在仓库根目录执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m frontend --open
+```
+
+打开 `http://127.0.0.1:8765`，在页面使用“开始演示、切断、继续”三个按钮控制运行，中央两个独立的圆角代码框显示真实代码与差异。其他实验操作通过 CLI 执行。
+前端独立放在 `frontend/`，其中 `server.py` 负责项目运行调度并启动真实 worker；`agent/` 负责实际改写和检查点。
+无需 Node 或前端构建。默认 Mock 只验证实际执行流程，不代表 AI 优化；真实模型需要在启动服务前设置 API key。
+操作说明见 [frontend/README.md](frontend/README.md)。
 ## 安装
 
 Python 3.10+。Windows PowerShell：

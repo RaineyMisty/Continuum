@@ -10,3 +10,5 @@ outputs/
 runs/
 
 .artifacts/
+
+frontend/vendor/

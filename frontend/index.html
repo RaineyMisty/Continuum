@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="console-token" content="__CONSOLE_TOKEN__"><title>Continuum</title><link rel="stylesheet" href="/style.css"><script src="/vendor/monaco/vs/loader.js" defer></script><script src="/app.js" defer></script></head>
+<body><header><a href="/" class="brand"><span></span>Continuum</a><nav aria-label="演示控制"><button id="start" class="primary">开始演示</button><button id="kill" disabled>切断</button><button id="resume" disabled>继续</button></nav></header>
+<main><div class="file-bar"><select id="files" aria-label="选择代码文件"></select></div>
+<section class="code-pair" aria-label="代码对比"><article class="code-card"><div class="card-heading"><h1>Before</h1><span class="dot before"></span></div><div id="before" class="code-editor" aria-label="原始代码"></div></article><article class="code-card"><div class="card-heading"><h1>After</h1><span class="dot after"></span></div><div id="after" class="code-editor" aria-label="改写后代码"></div></article></section>
+<div id="error" role="alert" hidden></div></main><div id="diff-engine" aria-hidden="true" inert></div></body></html>
